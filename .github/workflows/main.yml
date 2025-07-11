@@ -1,0 +1,60 @@
+name: 🚀 Deploy Promo Sales Service
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔐 Checkout code
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: 📦 Install paramiko and scp
+        run: |
+          pip install paramiko scp
+
+      - name: 🚀 Run deployment script
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          python <<EOF
+          import paramiko
+          import os
+
+          host = os.getenv("SERVER_IP")
+          user = os.getenv("SERVER_USER")
+          password = os.getenv("SERVER_PASSWORD")
+
+          ssh = paramiko.SSHClient()
+          ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+          ssh.connect(hostname=host, username=user, password=password)
+
+          stdin, stdout, stderr = ssh.exec_command("""
+            cd /root/promo_marketing &&
+            git pull origin main &&
+
+            source venv/bin/activate &&
+
+            pip install --upgrade pip &&
+
+            if [ -f requirements.txt ]; then
+              pip install -r requirements.txt --no-cache-dir
+            fi &&
+
+            systemctl daemon-reload &&
+            systemctl restart promo_sales
+          """)
+
+          print(stdout.read().decode())
+          print(stderr.read().decode())
+          EOF
