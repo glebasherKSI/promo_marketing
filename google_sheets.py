@@ -42,7 +42,7 @@ def load_sheet_to_df(spreadsheet_id: str, range_name: str, credentials_path: str
     df = pd.DataFrame(values[1:], columns=values[0])
     return df
 
-def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category: str, project: list, geo: str, subcategory: str = None, exact_start_date: bool = False) -> pd.DataFrame:
+def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category: str, project: list, geo: str, subcategory: str = None, exact_start_date: bool = False, exact_end_date: bool = False) -> pd.DataFrame:
     """
     Фильтрует DataFrame по периоду, категории и проекту
     
@@ -54,9 +54,8 @@ def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category
         project (list): Список названий проектов
         geo (str): Код гео (RU, KZ, UA, CA, DE, AU, BR)
         subcategory (str, optional): Название подкатегории (используется только если category='КАТЕГОРИЯ')
-        exact_start_date (bool, optional): Если True, то фильтрует записи где start_date равна Старт промо,
-                                         а end_date входит в промежуток от Старт промо до Завершение промо.
-                                         Если False, использует стандартную фильтрацию по пересечению периодов.
+        exact_start_date (bool, optional): Если True, фильтрует записи где дата "Старт промо" точно равна start_date
+        exact_end_date (bool, optional): Если True, фильтрует записи где дата "Завершение промо" точно равна end_date
         
     Returns:
         pd.DataFrame: Отфильтрованный DataFrame
@@ -93,14 +92,21 @@ def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category
     df['Старт промо'] = pd.to_datetime(df['Старт промо'], format='%d.%m.%Y')
     df['Завершение промо'] = pd.to_datetime(df['Завершение промо'], format='%d.%m.%Y')
     
-    # Фильтруем по периоду в зависимости от параметра exact_start_date
-    if exact_start_date:
+    # Фильтруем по периоду в зависимости от параметров exact_start_date и exact_end_date
+    if exact_start_date and exact_end_date:
+        # Обе кнопки активны: точное совпадение и начальной, и конечной даты
         date_mask = (
             (df['Старт промо'] == query_start) & 
-            (df['Завершение промо'] >= query_end) &
-            (df['Старт промо'] <= query_end)
+            (df['Завершение промо'] == query_end)
         )
+    elif exact_start_date and not exact_end_date:
+        # Активна только кнопка для начальной даты: точное совпадение начальной даты
+        date_mask = (df['Старт промо'] == query_start)
+    elif not exact_start_date and exact_end_date:
+        # Активна только кнопка для конечной даты: точное совпадение конечной даты
+        date_mask = (df['Завершение промо'] == query_end)
     else:
+        # Обе кнопки неактивны: стандартная фильтрация по пересечению периодов
         date_mask = (
             (df['Старт промо'] <= query_end) & 
             (df['Завершение промо'] >= query_start)
@@ -113,16 +119,19 @@ def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category
         category_mask = (df['Категория'] == category)
     
     # Создаем маску для проектов
-    project_mask = df['Проект'].str.lower().str.contains('all')
-    
-    # Добавляем маски для каждого проекта из списка
-    for proj in project:
-        project_mask |= (
-            df['Проект'].str.contains(proj) |  # Точное совпадение
-            df['Проект'].str.contains(f"{proj},") |  # Проект в начале списка
-            df['Проект'].str.contains(f", {proj},") |  # Проект в середине списка
-            df['Проект'].str.contains(f", {proj}$")  # Проект в конце списка
-        )
+    if project:  # Если список проектов не пустой
+        project_mask = df['Проект'].str.lower().str.contains('all')
+        
+        # Добавляем маски для каждого проекта из списка
+        for proj in project:
+            project_mask |= (
+                df['Проект'].str.contains(proj) |  # Точное совпадение
+                df['Проект'].str.contains(f"{proj},") |  # Проект в начале списка
+                df['Проект'].str.contains(f", {proj},") |  # Проект в середине списка
+                df['Проект'].str.contains(f", {proj}$")  # Проект в конце списка
+            )
+    else:  # Если список проектов пустой, не фильтруем по проектам
+        project_mask = pd.Series([True] * len(df), index=df.index)
     
     # Применяем все фильтры
     result_df = df[date_mask & category_mask & project_mask].copy()
@@ -259,9 +268,11 @@ if __name__ == '__main__':
         start_date='30.12.2024',
         end_date='05.01.2025',
         category='КАТЕГОРИЯ',
-        project='ROX',
+        project=['ROX'],
         geo='RU',
-        subcategory='Fruits'
+        subcategory='Fruits',
+        exact_start_date=False,
+        exact_end_date=False
     )
     
     print("\nРезультат фильтрации:")
