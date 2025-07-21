@@ -259,6 +259,16 @@ def show_reports_tab():
             'RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR', 'Гео', 'Комменатрии'
         ]
 
+        card_bg = '#fff'
+        card_border = '#d1d5db'
+        header_bg = '#e9ecef'
+        table_bg = '#f8f9fa'
+        border_color = '#d1d5db'
+        text_color = '#222'
+        subtext_color = '#555'
+        old_bg = '#ffb3b3'
+        new_bg = '#b3ffb3'
+
         for idx, row in logs_df.iterrows():
             date = row.get('Дата', '')
             # Преобразуем дату к формату 'дд.мм.гггг чч:мм' если возможно
@@ -280,36 +290,35 @@ def show_reports_tab():
             old_cells += [''] * (max_len - len(old_cells))
             new_cells += [''] * (max_len - len(new_cells))
 
-            table_html = "<table style='width:100%;border-collapse:collapse;'>"
+            table_html = f"<table style='width:100%;border-collapse:collapse;background:{table_bg};color:{text_color};'>"
             # Первая строка — заголовки
-            table_html += "<tr>"
-            table_html += "<th style='padding:4px 8px;background:#23272f;color:#aaa;border-bottom:1px solid #333;font-size:0.95em'></th>"
+            table_html += f"<tr><th style='padding:4px 8px;background:{header_bg};color:{subtext_color};border-bottom:1px solid {border_color};font-size:0.95em'></th>"
             for name in cell_names:
-                table_html += f"<th style='padding:4px 8px;background:#23272f;color:#aaa;border-bottom:1px solid #333;font-size:0.95em'>{name}</th>"
+                table_html += f"<th style='padding:4px 8px;background:{header_bg};color:{subtext_color};border-bottom:1px solid {border_color};font-size:0.95em'>{name}</th>"
             table_html += "</tr>"
             # Вторая строка — старое значение
             table_html += "<tr>"
-            table_html += "<td style='background:#23272f;color:#aaa;font-weight:bold;text-align:right;padding:4px 8px;border-right:1px solid #333;'>Старое значение</td>"
+            table_html += f"<td style='background:{header_bg};color:{subtext_color};font-weight:bold;text-align:right;padding:4px 8px;border-right:1px solid {border_color};'>Старое значение</td>"
             for i, val in enumerate(old_cells):
                 if val != new_cells[i]:
-                    table_html += f"<td style='background:#ffb3b3;color:#111;padding:4px 8px;font-family:monospace;'>{val}</td>"
+                    table_html += f"<td style='background:{old_bg};color:#111;padding:4px 8px;font-family:monospace;border-bottom:1px solid {border_color};'>{val}</td>"
                 else:
-                    table_html += f"<td style='padding:4px 8px;font-family:monospace;color:#aaa'>{val}</td>"
+                    table_html += f"<td style='padding:4px 8px;font-family:monospace;color:{subtext_color};border-bottom:1px solid {border_color};'>{val}</td>"
             table_html += "</tr>"
             # Третья строка — новое значение
             table_html += "<tr>"
-            table_html += "<td style='background:#23272f;color:#aaa;font-weight:bold;text-align:right;padding:4px 8px;border-right:1px solid #333;'>Новое значение</td>"
+            table_html += f"<td style='background:{header_bg};color:{subtext_color};font-weight:bold;text-align:right;padding:4px 8px;border-right:1px solid {border_color};'>Новое значение</td>"
             for i, val in enumerate(new_cells):
                 if val != old_cells[i]:
-                    table_html += f"<td style='background:#b3ffb3;color:#111;padding:4px 8px;font-family:monospace;'>{val}</td>"
+                    table_html += f"<td style='background:{new_bg};color:#111;padding:4px 8px;font-family:monospace;border-bottom:1px solid {border_color};'>{val}</td>"
                 else:
-                    table_html += f"<td style='padding:4px 8px;font-family:monospace;color:#aaa'>{val}</td>"
+                    table_html += f"<td style='padding:4px 8px;font-family:monospace;color:{subtext_color};border-bottom:1px solid {border_color};'>{val}</td>"
             table_html += "</tr>"
             table_html += "</table>"
 
             st.markdown(f"""
-            <div style='background:#23272f;padding:1.2em 1.5em;margin-bottom:2em;border-radius:10px;border:2px solid #333;'>
-                <div style='color:#aaa;font-size:0.95em;margin-bottom:0.2em;'>🕒 <b>{date}</b> &nbsp; 👤 <b>{user}</b> &nbsp; <span style='color:#888'>Ячейка:</span> <b>{cell}</b></div>
+            <div style='background:{card_bg};padding:1.2em 1.5em;margin-bottom:2em;border-radius:10px;border:2px solid {card_border};'>
+                <div style='color:{subtext_color};font-size:0.95em;margin-bottom:0.2em;'>🕒 <b>{date}</b> &nbsp; 👤 <b>{user}</b> &nbsp; <span style='color:{subtext_color}'>Ячейка:</span> <b>{cell}</b></div>
                 {table_html}
             </div>
             """, unsafe_allow_html=True)
