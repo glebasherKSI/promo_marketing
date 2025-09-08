@@ -40,7 +40,7 @@ jobs:
           ssh.connect(hostname=host, username=user, password=password)
 
           stdin, stdout, stderr = ssh.exec_command("""
-            cd /root/promo_marketing &&
+            cd /root/promo_discount &&
             git pull origin main &&
 
             source venv/bin/activate &&
