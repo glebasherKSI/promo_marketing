@@ -1,0 +1,21 @@
+[server]
+# Обновленная конфигурация сервера
+enableXsrfProtection = true
+enableCORS = true
+
+[browser]
+# Отключаем автоматическое открытие браузера
+serverAddress = "localhost"
+gatherUsageStats = false
+
+[theme]
+# Настройка цветовой схемы
+primaryColor = "#b8336a"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8f9fa"
+textColor = "#212529"
+font = "sans serif"
+
+[ui]
+# Скрываем навигацию боковой панели и гамбургер меню
+hideTopBar = true 

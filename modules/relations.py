@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from google_sheets import load_sheet_to_df, filter_promo_data, get_logs_by_id
+from google_sheets import load_sheet_to_df, filter_promo_data
 import io
 import plotly.express as px
 import calendar
@@ -10,7 +10,6 @@ import json
 from streamlit_javascript import st_javascript
 from streamlit_echarts import st_echarts
 from streamlit_echarts import JsCode
-import difflib
 # Константы
 SPREADSHEET_ID = '1m7TE_YFLtf2opgral3YVr7SeJk2BSh7YXuWtEUDUcNY'
 RANGE_NAME = 'Сводный'
@@ -61,7 +60,7 @@ def show_page():
         st.markdown("### 📋 Разделы")
         tab_selected = st.radio(
             "Выберите раздел:",
-            ["Размещение слотов", "Логи изменений"],
+            ["Размещение слотов", "Скоро"],
             label_visibility="collapsed"
         )
         
@@ -98,7 +97,7 @@ def show_page():
     # Основной контент в зависимости от выбранного раздела
     if tab_selected == "Размещение слотов":
         show_promo_tab()
-    elif tab_selected == "Логи изменений":
+    elif tab_selected == "Скоро":
         show_reports_tab()
     elif tab_selected == "Настройки":
         show_settings_tab()
@@ -239,92 +238,8 @@ def show_promo_tab():
         st.error("Не удалось загрузить данные. Проверьте подключение и учетные данные.")
 
 def show_reports_tab():
-    st.title("Логи изменений (за последние 3 месяца)")
-    refresh = st.button('🔄 Обновить')
-    try:
-        if refresh:
-            with st.spinner('Загрузка логов...'):
-                if hasattr(get_logs_by_id, 'clear'):
-                    get_logs_by_id.clear()
-                logs_df = get_logs_by_id(SPREADSHEET_ID, CREDENTIALS_PATH)
-        else:
-            logs_df = get_logs_by_id(SPREADSHEET_ID, CREDENTIALS_PATH)
-        if logs_df.empty:
-            st.warning("Нет логов за последние 3 месяца.")
-            return
-
-        base_cell_names = [
-            'Год', 'Статус', 'Провайдер', 'Месяц', 'Проект', 'Размещение', 'Старт промо', 'Завершение промо',
-            'Игра', 'Категория', 'Позиция', 'Название категории', 'Скидка', 'ПФ (комп)', 'Период скидки',
-            'RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR', 'Гео', 'Комменатрии'
-        ]
-
-        card_bg = '#fff'
-        card_border = '#d1d5db'
-        header_bg = '#e9ecef'
-        table_bg = '#f8f9fa'
-        border_color = '#d1d5db'
-        text_color = '#222'
-        subtext_color = '#555'
-        old_bg = '#ffb3b3'
-        new_bg = '#b3ffb3'
-
-        for idx, row in logs_df.iterrows():
-            date = row.get('Дата', '')
-            # Преобразуем дату к формату 'дд.мм.гггг чч:мм' если возможно
-            try:
-                date_obj = pd.to_datetime(date)
-                date = date_obj.strftime('%d.%m.%Y %H:%M')
-            except Exception:
-                pass
-            user = row.get('Пользователь', '')
-            cell = row.get('Ячейка', '')
-            old = str(row.get('Старое значение', ''))
-            new = str(row.get('Новое значение', ''))
-
-            old_cells = [x.strip() for x in old.split('|')]
-            new_cells = [x.strip() for x in new.split('|')]
-
-            max_len = max(len(old_cells), len(new_cells), len(base_cell_names))
-            cell_names = base_cell_names + [''] * (max_len - len(base_cell_names))
-            old_cells += [''] * (max_len - len(old_cells))
-            new_cells += [''] * (max_len - len(new_cells))
-
-            table_html = f"<table style='width:100%;border-collapse:collapse;background:{table_bg};color:{text_color};'>"
-            # Первая строка — заголовки
-            table_html += f"<tr><th style='padding:4px 8px;background:{header_bg};color:{subtext_color};border-bottom:1px solid {border_color};font-size:0.95em'></th>"
-            for name in cell_names:
-                table_html += f"<th style='padding:4px 8px;background:{header_bg};color:{subtext_color};border-bottom:1px solid {border_color};font-size:0.95em'>{name}</th>"
-            table_html += "</tr>"
-            # Вторая строка — старое значение
-            table_html += "<tr>"
-            table_html += f"<td style='background:{header_bg};color:{subtext_color};font-weight:bold;text-align:right;padding:4px 8px;border-right:1px solid {border_color};'>Старое значение</td>"
-            for i, val in enumerate(old_cells):
-                if val != new_cells[i]:
-                    table_html += f"<td style='background:{old_bg};color:#111;padding:4px 8px;font-family:monospace;border-bottom:1px solid {border_color};'>{val}</td>"
-                else:
-                    table_html += f"<td style='padding:4px 8px;font-family:monospace;color:{subtext_color};border-bottom:1px solid {border_color};'>{val}</td>"
-            table_html += "</tr>"
-            # Третья строка — новое значение
-            table_html += "<tr>"
-            table_html += f"<td style='background:{header_bg};color:{subtext_color};font-weight:bold;text-align:right;padding:4px 8px;border-right:1px solid {border_color};'>Новое значение</td>"
-            for i, val in enumerate(new_cells):
-                if val != old_cells[i]:
-                    table_html += f"<td style='background:{new_bg};color:#111;padding:4px 8px;font-family:monospace;border-bottom:1px solid {border_color};'>{val}</td>"
-                else:
-                    table_html += f"<td style='padding:4px 8px;font-family:monospace;color:{subtext_color};border-bottom:1px solid {border_color};'>{val}</td>"
-            table_html += "</tr>"
-            table_html += "</table>"
-
-            st.markdown(f"""
-            <div style='background:{card_bg};padding:1.2em 1.5em;margin-bottom:2em;border-radius:10px;border:2px solid {card_border};'>
-                <div style='color:{subtext_color};font-size:0.95em;margin-bottom:0.2em;'>🕒 <b>{date}</b> &nbsp; 👤 <b>{user}</b> &nbsp; <span style='color:{subtext_color}'>Ячейка:</span> <b>{cell}</b></div>
-                {table_html}
-            </div>
-            """, unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"Ошибка при загрузке логов: {str(e)}")
-
+    st.title("В разработке или нет...")
+    
 
 def show_settings_tab():
     st.title("⚙️ Настройки")
