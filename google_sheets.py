@@ -61,7 +61,7 @@ def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category
         pd.DataFrame: Отфильтрованный DataFrame
     """
     # Проверяем валидность гео
-    valid_geos = ['RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR']
+    valid_geos = ['RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR', 'PL', 'PT','CH', 'AT']
     if geo not in valid_geos:
         raise ValueError(f"Неверное значение geo. Допустимые значения: {', '.join(valid_geos)}")
     
