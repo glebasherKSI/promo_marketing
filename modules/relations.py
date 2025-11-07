@@ -14,7 +14,7 @@ from streamlit_echarts import JsCode
 SPREADSHEET_ID = '1m7TE_YFLtf2opgral3YVr7SeJk2BSh7YXuWtEUDUcNY'
 RANGE_NAME = 'Сводный'
 CREDENTIALS_PATH = 'credentials.json'
-VALID_GEOS = ['RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR', 'PL', 'PT','CH', 'AT']
+VALID_GEOS = ['RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR', 'PL', 'PT','CH', 'AT' ]
 VALID_CATEGORIES = ['ГЛАВНАЯ','КАТЕГОРИЯ', 'НОВИНКИ']
 
 # Функция для получения уникальных значений из колонки с учетом разделителей
