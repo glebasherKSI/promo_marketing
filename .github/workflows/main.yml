@@ -41,18 +41,37 @@ jobs:
 
           stdin, stdout, stderr = ssh.exec_command("""
             cd /root/promo_discount &&
-            git pull origin main &&
-
+            
+            # Удаляем файлы __pycache__ и другие временные файлы перед pull
+            find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find . -type f -name "*.pyc" -delete 2>/dev/null || true
+            find . -type f -name "*.pyo" -delete 2>/dev/null || true
+            
+            # Удаляем __pycache__ из индекса git (если они там есть)
+            git rm -r --cached --ignore-unmatch modules/__pycache__ 2>/dev/null || true
+            git rm -r --cached --ignore-unmatch __pycache__ 2>/dev/null || true
+            
+            # Сохраняем локальные изменения (если есть) и делаем pull
+            git stash 2>/dev/null || true
+            git pull origin main || {
+              echo "Ошибка при pull. Пытаемся сбросить изменения..."
+              git reset --hard origin/main
+            }
+            
+            # Активируем виртуальное окружение
             source venv/bin/activate &&
-
+            
+            # Обновляем pip
             pip install --upgrade pip &&
-
+            
+            # Устанавливаем зависимости
             if [ -f requirements.txt ]; then
               pip install -r requirements.txt --no-cache-dir
             fi &&
-
+            
+            # Перезапускаем сервис
             systemctl daemon-reload &&
-            systemctl restart promo_sales
+            systemctl restart promo_sales || echo "⚠️  Сервис promo_sales не найден или не запущен"
           """)
 
           print(stdout.read().decode())
