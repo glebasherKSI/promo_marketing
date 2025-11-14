@@ -2,9 +2,55 @@ import streamlit as st
 import importlib
 import sys
 import os
+import logging
 
 # Добавляем путь к каталогу с проектом, чтобы можно было импортировать модули
 sys.path.append(os.path.dirname(__file__))
+
+# Настраиваем логирование для подавления WebSocket ошибок
+# Устанавливаем уровень ERROR для всех tornado логгеров
+tornado_loggers = [
+    "tornado.access",
+    "tornado.application", 
+    "tornado.general",
+    "tornado.websocket",
+    "tornado.iostream"
+]
+
+# Подавляем ошибки WebSocketClosedError
+class WebSocketErrorFilter(logging.Filter):
+    def filter(self, record):
+        # Фильтруем сообщения об ошибках WebSocket
+        message = str(record.getMessage())
+        if any(keyword in message for keyword in [
+            "WebSocketClosedError",
+            "Stream is closed",
+            "StreamClosedError",
+            "Task exception was never retrieved"
+        ]):
+            return False
+        # Фильтруем по имени исключения
+        if record.exc_info:
+            exc_type = record.exc_info[0]
+            if exc_type and "WebSocketClosedError" in str(exc_type):
+                return False
+        return True
+
+# Применяем фильтр и настраиваем уровень логирования
+for logger_name in tornado_loggers:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.ERROR)
+    logger.addFilter(WebSocketErrorFilter())
+    
+    # Удаляем все существующие обработчики и добавляем новый с фильтром
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Создаем новый обработчик с фильтром
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.ERROR)
+    handler.addFilter(WebSocketErrorFilter())
+    logger.addHandler(handler)
 
 # Настройки страницы
 st.set_page_config(

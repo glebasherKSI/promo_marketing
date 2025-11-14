@@ -251,7 +251,42 @@ def send_request(project,link_project):
     print(f"Не удалось найти рабочее зеркало для проекта {project}")
     return []
 
-
+def get_logs_by_id(spreadsheet_id: str, credentials_path: str, date_column: str = "Дата", limit: int = None) -> pd.DataFrame:
+    """
+    Получает все логи из листа 'логи', сортирует по дате (самые новые сверху) и оставляет только записи не старше 3 месяцев.
+    Args:
+        spreadsheet_id (str): ID таблицы
+        credentials_path (str): Путь к credentials.json
+        date_column (str): Название колонки с датой (по умолчанию 'Дата')
+        limit (int, optional): Ограничение количества записей для ускорения загрузки
+    Returns:
+        pd.DataFrame: DataFrame с логами, отсортированный по дате (убывание) и не старше 3 месяцев
+    """
+    df_logs = load_sheet_to_df(spreadsheet_id, "логи", credentials_path)
+    
+    # Проверяем, что данные не пустые
+    if df_logs.empty:
+        return df_logs
+    
+    # Преобразуем столбец с датой к datetime для корректной сортировки и фильтрации
+    df_logs[date_column] = pd.to_datetime(df_logs[date_column], errors='coerce', dayfirst=True)
+    
+    # Удаляем строки с некорректными датами
+    df_logs = df_logs.dropna(subset=[date_column])
+    
+    # Оставляем только записи не старше 3 месяцев
+    three_months_ago = pd.Timestamp.now() - pd.DateOffset(months=3)
+    df_logs = df_logs[df_logs[date_column] >= three_months_ago]
+    
+    # Сортируем по дате (самые новые сверху)
+    df_logs = df_logs.sort_values(date_column, ascending=False)
+    
+    # Ограничиваем количество записей для ускорения (если указано)
+    if limit and len(df_logs) > limit:
+        df_logs = df_logs.head(limit)
+    
+    df_logs = df_logs.reset_index(drop=True)
+    return df_logs
 
 
 if __name__ == '__main__':

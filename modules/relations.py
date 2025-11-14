@@ -1,15 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from google_sheets import load_sheet_to_df, filter_promo_data
+from google_sheets import load_sheet_to_df, filter_promo_data, get_logs_by_id
 import io
-import plotly.express as px
-import calendar
-import uuid
-import json
-from streamlit_javascript import st_javascript
-from streamlit_echarts import st_echarts
-from streamlit_echarts import JsCode
 # Константы
 SPREADSHEET_ID = '1m7TE_YFLtf2opgral3YVr7SeJk2BSh7YXuWtEUDUcNY'
 RANGE_NAME = 'Сводный'
@@ -45,6 +38,35 @@ def load_data():
         st.error(f"Ошибка при загрузке данных: {str(e)}")
         return None
 
+# Загружаем логи (без автообновления, только по кнопке)
+def load_logs_data(limit: int = 500):
+    """
+    Загружает логи с ограничением количества для ускорения работы
+    Args:
+        limit: Максимальное количество записей для загрузки (по умолчанию 500)
+    """
+    try:
+        return get_logs_by_id(SPREADSHEET_ID, CREDENTIALS_PATH, limit=limit)
+    except Exception as e:
+        st.error(f"Ошибка при загрузке логов: {str(e)}")
+        return pd.DataFrame()
+
+# Получаем список колонок из основного листа (без автообновления)
+@st.cache_data  # Кэш без TTL - обновляется только при явной очистке
+def get_column_names():
+    """
+    Получает список названий колонок из основного листа 'Сводный'
+    для использования в отображении логов изменений
+    """
+    try:
+        df = load_sheet_to_df(SPREADSHEET_ID, RANGE_NAME, CREDENTIALS_PATH)
+        # Возвращаем список названий колонок
+        return df.columns.tolist()
+    except Exception:
+        # В случае ошибки возвращаем базовый список колонок
+        # (предупреждение будет показано в show_reports_tab)
+        return None
+
 def show_page():
     # Проверка авторизации
     if "logged_in" not in st.session_state or not st.session_state.logged_in:
@@ -60,7 +82,7 @@ def show_page():
         st.markdown("### 📋 Разделы")
         tab_selected = st.radio(
             "Выберите раздел:",
-            ["Размещение слотов", "Скоро"],
+            ["Размещение слотов", "Логи изменений"],
             label_visibility="collapsed"
         )
         
@@ -97,7 +119,7 @@ def show_page():
     # Основной контент в зависимости от выбранного раздела
     if tab_selected == "Размещение слотов":
         show_promo_tab()
-    elif tab_selected == "Скоро":
+    elif tab_selected == "Логи изменений":
         show_reports_tab()
     elif tab_selected == "Настройки":
         show_settings_tab()
@@ -238,8 +260,172 @@ def show_promo_tab():
         st.error("Не удалось загрузить данные. Проверьте подключение и учетные данные.")
 
 def show_reports_tab():
-    st.title("В разработке или нет...")
+    st.title("Логи изменений (за последние 3 месяца)")
     
+    # Добавляем глобальные стили для скроллбара
+    st.markdown("""
+    <style>
+        /* Стили для красивого скроллбара таблиц */
+        .log-table-container::-webkit-scrollbar {
+            height: 12px;
+        }
+        .log-table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .log-table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .log-table-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Для Firefox */
+        .log-table-container {
+            scrollbar-width: thin;
+            scrollbar-color: #888 #f1f1f1;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Инициализируем session_state для хранения данных
+    if 'logs_data' not in st.session_state:
+        st.session_state.logs_data = None
+    if 'column_names' not in st.session_state:
+        st.session_state.column_names = None
+    if 'logs_loading' not in st.session_state:
+        st.session_state.logs_loading = False
+    
+    # Загружаем данные при первой загрузке
+    if st.session_state.logs_data is None and not st.session_state.logs_loading:
+        st.session_state.logs_loading = True
+        with st.spinner('Загрузка логов...'):
+            try:
+                st.session_state.logs_data = load_logs_data()
+                st.session_state.column_names = get_column_names()
+            finally:
+                st.session_state.logs_loading = False
+    
+    # Кнопка обновления
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        refresh = st.button('🔄 Обновить', use_container_width=True)
+    
+    # Обновляем данные при нажатии кнопки
+    if refresh:
+        st.session_state.logs_loading = True
+        with st.spinner('Загрузка логов...'):
+            try:
+                # Очищаем кэш колонок при обновлении
+                get_column_names.clear()
+                # Загружаем данные
+                st.session_state.logs_data = load_logs_data()
+                st.session_state.column_names = get_column_names()
+                st.success('✅ Логи обновлены!', icon="✅")
+            except Exception as e:
+                st.error(f"Ошибка при обновлении: {str(e)}")
+            finally:
+                st.session_state.logs_loading = False
+    
+    # Показываем сообщение, если данные еще загружаются
+    if st.session_state.logs_loading:
+        st.info("⏳ Загрузка данных...")
+        return
+    
+    try:
+        logs_df = st.session_state.logs_data
+        base_cell_names = st.session_state.column_names
+        
+        # Проверяем, что данные загружены
+        if logs_df is None:
+            st.info("Нажмите кнопку '🔄 Обновить' для загрузки логов")
+            return
+            
+        if logs_df.empty:
+            st.warning("Нет логов за последние 3 месяца.")
+            return
+        
+        # Если не удалось загрузить колонки из документа, используем базовый список
+        if base_cell_names is None:
+            st.warning("Не удалось загрузить список колонок из документа. Используется базовый список.")
+            base_cell_names = [
+                'Год', 'Статус', 'Провайдер', 'Месяц', 'Проект', 'Размещение', 'Старт промо', 'Завершение промо',
+                'Игра', 'Категория', 'Позиция', 'Название категории', 'Скидка', 'ПФ (комп)', 'Период скидки',
+                'RU', 'KZ', 'UA', 'CA', 'DE', 'AU', 'BR', 'Гео', 'Комменатрии'
+            ]
+
+        card_bg = '#fff'
+        card_border = '#d1d5db'
+        header_bg = '#e9ecef'
+        table_bg = '#f8f9fa'
+        border_color = '#d1d5db'
+        text_color = '#222'
+        subtext_color = '#555'
+        old_bg = '#ffb3b3'
+        new_bg = '#b3ffb3'
+
+        for idx, row in logs_df.iterrows():
+            date = row.get('Дата', '')
+            # Преобразуем дату к формату 'дд.мм.гггг чч:мм' если возможно
+            try:
+                date_obj = pd.to_datetime(date)
+                date = date_obj.strftime('%d.%m.%Y %H:%M')
+            except Exception:
+                pass
+            user = row.get('Пользователь', '')
+            cell = row.get('Ячейка', '')
+            old = str(row.get('Старое значение', ''))
+            new = str(row.get('Новое значение', ''))
+
+            old_cells = [x.strip() for x in old.split('|')]
+            new_cells = [x.strip() for x in new.split('|')]
+
+            max_len = max(len(old_cells), len(new_cells), len(base_cell_names))
+            cell_names = base_cell_names + [''] * (max_len - len(base_cell_names))
+            old_cells += [''] * (max_len - len(old_cells))
+            new_cells += [''] * (max_len - len(new_cells))
+
+            # Создаем таблицу с фиксированной минимальной шириной для ячеек
+            table_html = f"<table style='min-width:100%;width:max-content;border-collapse:collapse;background:{table_bg};color:{text_color};white-space:nowrap;'>"
+            # Первая строка — заголовки
+            table_html += f"<tr><th style='padding:8px 12px;background:{header_bg};color:{subtext_color};border:1px solid {border_color};font-size:0.9em;position:sticky;left:0;z-index:10;min-width:120px;'>{'Тип'}</th>"
+            for name in cell_names:
+                table_html += f"<th style='padding:8px 12px;background:{header_bg};color:{subtext_color};border:1px solid {border_color};font-size:0.9em;min-width:100px;'>{name}</th>"
+            table_html += "</tr>"
+            # Вторая строка — старое значение
+            table_html += "<tr>"
+            table_html += f"<td style='background:{header_bg};color:{subtext_color};font-weight:bold;text-align:right;padding:8px 12px;border:1px solid {border_color};position:sticky;left:0;z-index:5;min-width:120px;'>Старое значение</td>"
+            for i, val in enumerate(old_cells):
+                # Ограничиваем длину текста для лучшего отображения
+                display_val = str(val)[:50] + ('...' if len(str(val)) > 50 else '')
+                if val != new_cells[i]:
+                    table_html += f"<td style='background:{old_bg};color:#111;padding:8px 12px;font-family:monospace;border:1px solid {border_color};min-width:100px;' title='{val}'>{display_val}</td>"
+                else:
+                    table_html += f"<td style='padding:8px 12px;font-family:monospace;color:{subtext_color};border:1px solid {border_color};min-width:100px;'>{display_val}</td>"
+            table_html += "</tr>"
+            # Третья строка — новое значение
+            table_html += "<tr>"
+            table_html += f"<td style='background:{header_bg};color:{subtext_color};font-weight:bold;text-align:right;padding:8px 12px;border:1px solid {border_color};position:sticky;left:0;z-index:5;min-width:120px;'>Новое значение</td>"
+            for i, val in enumerate(new_cells):
+                # Ограничиваем длину текста для лучшего отображения
+                display_val = str(val)[:50] + ('...' if len(str(val)) > 50 else '')
+                if val != old_cells[i]:
+                    table_html += f"<td style='background:{new_bg};color:#111;padding:8px 12px;font-family:monospace;border:1px solid {border_color};min-width:100px;' title='{val}'>{display_val}</td>"
+                else:
+                    table_html += f"<td style='padding:8px 12px;font-family:monospace;color:{subtext_color};border:1px solid {border_color};min-width:100px;'>{display_val}</td>"
+            table_html += "</tr>"
+            table_html += "</table>"
+
+            st.markdown(f"""
+            <div style='background:{card_bg};padding:1.2em 1.5em;margin-bottom:2em;border-radius:10px;border:2px solid {card_border};box-shadow:0 2px 4px rgba(0,0,0,0.1);'>
+                <div style='color:{subtext_color};font-size:0.95em;margin-bottom:1em;padding-bottom:0.5em;border-bottom:1px solid {border_color};'>🕒 <b>{date}</b> &nbsp; 👤 <b>{user}</b> &nbsp; <span style='color:{subtext_color}'>Ячейка:</span> <b>{cell}</b></div>
+                <div class='log-table-container' style='overflow-x:auto;overflow-y:visible;width:100%;max-width:100%;border:1px solid {border_color};border-radius:5px;'>
+                    {table_html}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Ошибка при загрузке логов: {str(e)}")
 
 def show_settings_tab():
     st.title("⚙️ Настройки")

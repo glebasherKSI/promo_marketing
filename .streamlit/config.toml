@@ -18,4 +18,10 @@ font = "sans serif"
 
 [ui]
 # Скрываем навигацию боковой панели и гамбургер меню
-hideTopBar = true 
+hideTopBar = true
+
+[logger]
+# Настройка уровня логирования (error, warning, info, debug)
+level = "error"
+# Подавляем предупреждения об устаревших функциях
+suppressDeprecationWarnings = true 
