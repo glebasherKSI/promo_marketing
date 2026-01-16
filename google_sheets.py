@@ -81,8 +81,14 @@ def filter_promo_data(df: pd.DataFrame, start_date: str, end_date: str, category
     # Удаляем строки с пустыми значениями в обязательных колонках
     df = df.dropna(subset=required_columns)
     
-    # Удаляем строки с 2024 годом
-    df = df[df['Год'].astype(int) > 2024]
+    # Удаляем строки с пустыми значениями в колонке 'Год' и преобразуем в числовой формат
+    if 'Год' in df.columns:
+        # Преобразуем колонку 'Год' в числовой формат, невалидные значения станут NaN
+        df['Год'] = pd.to_numeric(df['Год'], errors='coerce')
+        # Удаляем строки с NaN в колонке 'Год'
+        df = df.dropna(subset=['Год'])
+        # Удаляем строки с 2024 годом и меньше
+        df = df[df['Год'] > 2024]
     
     # Конвертируем даты запроса
     query_start = datetime.strptime(start_date, '%d.%m.%Y')
